@@ -1,8 +1,8 @@
 /**
   **********************************************************************************
-  * @file     IQS5xx.cpp
+  * @file     IQS5xx.h
   * @author   skydarc
-  * @version  V0.0.0
+  * @version  V0.1
   * @date     2022-10-20
   * @brief    This file contains the constructors and methods which allow ease of
   *           use of an IQS5xx capactive touch controller. The IQS5xx is a capacitive
@@ -45,10 +45,11 @@ class IQS5xx {
         
         // Public Methods
 		bool begin(uint8_t deviceAddressIn, uint8_t readyPinIn);
+		void startInterrupt(void *pFunc, uint8_t trigger);
         void AcknowledgeReset(void);
-        uint8_t CheckVersion(uint8_t *pData);
+        uint8_t CheckVersion(uint8_t pData[]);
         void DisplaySnap(void);
-        uint8_t Process_XY(void);
+        uint8_t Process_XY(uint16_t pData[]);
 		uint8_t getGesture(void);
         void Close_Comms();
   

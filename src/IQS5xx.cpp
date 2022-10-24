@@ -2,7 +2,7 @@
   **********************************************************************************
   * @file     IQS5xx.cpp
   * @author   skydarc
-  * @version  V0.0.0
+  * @version  V0.1
   * @date     2022-10-20
   * @brief    This file contains the constructors and methods which allow ease of
   *           use of an IQS5xx capactive touch controller. The IQS5xx is a capacitive
@@ -53,6 +53,14 @@ bool IQS5xx::begin(uint8_t deviceAddressIn, uint8_t readyPinIn)
 
 }
 
+
+void IQS5xx::startInterrupt(void *pFunc, uint8_t trigger)
+{
+	cli();//stop interrupts  
+	attachInterrupt(digitalPinToInterrupt(_readyPin), pFunc, trigger);
+	sei();// enable interrupts
+}
+
 //*****************************************************************************
 //
 //! Acknowledge the reset flag
@@ -74,7 +82,7 @@ void IQS5xx::AcknowledgeReset(void) {
     I2C_Write(SystemControl0_adr, &System_ctrl_0, 1);
 }
 
-uint8_t IQS5xx::CheckVersion(uint8_t *pData) {
+uint8_t IQS5xx::CheckVersion(uint8_t pData[]) {
   
     //uint8_t ui8DataBuffer[15];  // defaut size : 6
 	
@@ -84,13 +92,13 @@ uint8_t IQS5xx::CheckVersion(uint8_t *pData) {
     // forced communication, where clock stretching will be done on the IQS5xx
     // until an appropriate time to complete the i2c.
     //
-    I2C_Read(ProductNumber_adr, pData ,6);
+    uint8_t result = I2C_Read(ProductNumber_adr, pData ,6);
   
     /*printf("Product %d ", (ui8DataBuffer[0]<<8) + ui8DataBuffer[1]); 
     printf("Project %d ", (ui8DataBuffer[2]<<8) + ui8DataBuffer[3]);
     printf("Verrsion %d.%d\n", ui8DataBuffer[4], ui8DataBuffer[5]);*/
 	
-	return;
+	return result == 0 ? 1 : 0;
 	
 	//return &ui8DataBuffer[0];
     
@@ -217,23 +225,23 @@ void IQS5xx::DisplaySnap(void)
 //!                                  
 //! \param None
 //!                                           
-//! \return None
+//! \return NBRS FINGERS
 //                                                      
 //*****************************************************************************
-uint8_t IQS5xx::Process_XY(void) 
-{ 
-    uint8_t     i; 
+uint8_t IQS5xx::Process_XY(uint16_t pData[]) {
+	
     static uint8_t ui8FirstTouch = 0;
     uint8_t     ui8NoOfFingers;
     uint8_t     ui8SystemFlags[2];
-    int16_t     i16RelX[6];
-    int16_t     i16RelY[6];
     uint16_t    ui16AbsX[6];
     uint16_t    ui16AbsY[6];
     uint16_t    ui16TouchStrength[6];
     uint8_t     ui8Area[6];
  
-    I2C_Read(GestureEvents0_adr, &Data_Buff[0], 44);
+	sei();// enable interrupts  
+    uint8_t result = I2C_Read(GestureEvents0_adr, &Data_Buff[0], 44);
+	
+	if(!result) return 0;
 	
 	Close_Comms();
 	
@@ -249,60 +257,50 @@ uint8_t IQS5xx::Process_XY(void)
     if((ui8SystemFlags[1] & SNAP_TOGGLE) != 0) {
         DisplaySnap();
         return 0;
-    }
-
-    if((Data_Buff[0]) == SINGLE_TAP) {       
-        return SINGLE_TAP;
-    }
-    else if((Data_Buff[1]) == TWO_FINGER_TAP) {
-        return TWO_FINGER_TAP+0x20;
     }       
 
-    if(ui8NoOfFingers != 0) 
-    {
-        if (!(ui8FirstTouch)) {
-            ui8FirstTouch = 1;
-        }
-
-        switch (Data_Buff[0]) {
-            case TAP_AND_HOLD   :   return TAP_AND_HOLD;
-            case SWIPE_X_NEG    :   return SWIPE_X_NEG;
-            case SWIPE_X_POS    :   return SWIPE_X_POS;
-            case SWIPE_Y_POS    :   return SWIPE_Y_POS;
-            case SWIPE_Y_NEG    :   return SWIPE_Y_NEG;
-        }
-
-        switch (Data_Buff[1]) {
-            case SCROLL         :   return SCROLL+0x20;
-            case ZOOM           :   return ZOOM+0x20;
-        }
+    if(ui8NoOfFingers != 0) {
+		
+        for (uint8_t i = 0; i < 5; i++) {
+			ui16AbsX[i+1] = ((Data_Buff[(7*i)+9] << 8) | (Data_Buff[(7*i)+10])); //9-16-23-30-37//10-17-24-31-38
+			ui16AbsY[i+1] = ((Data_Buff[(7*i)+11] << 8) | (Data_Buff[(7*i)+12])); //11-18-25-32-39//12-19-26-33-40
+			ui16TouchStrength[i+1] = ((Data_Buff[(7*i)+13] << 8) | (Data_Buff[(7*i)+14])); //13-20-27-34-11/14-21-28-35-42
+			ui8Area[i+1] = (Data_Buff[7*i+15]); //15-22-29-36-43
+			
+			pData[0+i*4] = ui16AbsX[i+1];
+			pData[1+i*4] = ui16AbsY[i+1]; 
+			pData[2+i*4] = ui16TouchStrength[i+1];
+			pData[3+i*4] = ui8Area[i+1];
+		}
+		
+		return ui8NoOfFingers;
     } 
-    else 
-    {
-        ui8FirstTouch = 0;
-    }
 	
 	return 0;
 }
 
 //*****************************************************************************
-//
-//! Process the data received
-//!                            
-//! This function sorts the read bytes from the IQS5xx and prints relevant data 
-//! on serial port. 
-//! REL_X[n]: Relative X Position of the finger n; n is from (1 to 5)
-//! REL_Y[n]: Relative X Position of the finger n; n is from (1 to 5)
-//! ABS_X[n]: Absolute X Position of the finger n; n is from (1 to 5)
-//! ABS_Y[n]: Absolute Y Position of the finger n; n is from (1 to 5)
-//! ui16TouchStrength[n]   : Touch strength of finger n; n is from (1 to 5)
-//! ui8Area[n]   : Touch area of finger n; this is number of channels under touch 
-//! for a particular finger; 
-//! Where 'n' is from (1 to 5)
+//                         
+//! This function return a value who correspond to gesture :
 //!                                  
 //! \param None
 //!                                           
-//! \return None
+//! \return :
+//!
+//! SINGLE_TAP 			= 0x01
+//!	TAP_AND_HOLD 		= 0x02
+//! SWIPE_X_NEG			= 0x04
+//! SWIPE_X_POS			= 0x08
+//! SWIPE_Y_POS			= 0x10
+//! SWIPE_Y_NEG			= 0x20
+//! TWO_FINGER_TAP		= 0x11 (0x10 + 0x01)
+//! HORIZONTAL SCROLL	= 0x12 (0x10 + 0x02)
+//! HORIZONTAL SCROLL	= 0x22 (0x20 + 0x02)
+//! VERTICAL SCROLL		= 0x42 (0x40 + 0x02)
+//! VERTICAL SCROLL		= 0x82 (0x80 + 0x02)
+//! ZOOM IN				= 0x14 (0x10 + 0x04)
+//! ZOOM OUT			= 0x24 (0x20 + 0x04)
+//!
 //                                                      
 //*****************************************************************************
 uint8_t IQS5xx::getGesture(void) {
@@ -312,7 +310,10 @@ uint8_t IQS5xx::getGesture(void) {
     int16_t     i16RelX;
     int16_t     i16RelY;
 
-    I2C_Read(GestureEvents0_adr, &Data_Buff[0], 44);
+	sei();// enable interrupts  
+    uint8_t result = I2C_Read(GestureEvents0_adr, &Data_Buff[0], 44);
+	
+	if(!result) return 0;
 	
 	Close_Comms();
 	
@@ -337,7 +338,7 @@ uint8_t IQS5xx::getGesture(void) {
         return SINGLE_TAP;
     }
     else if((Data_Buff[1]) == TWO_FINGER_TAP) {
-        return TWO_FINGER_TAP+0x20;
+        return TWO_FINGER_TAP+0x10;
     }       
 
     if(ui8NoOfFingers != 0) 
@@ -360,10 +361,10 @@ uint8_t IQS5xx::getGesture(void) {
 										return SCROLL+0x20; // Horizontal Scroll +
 									}
 									else if(i16RelY < 0) {
-										return SCROLL+0x30; // Vertical Scroll -
+										return SCROLL+0x40; // Vertical Scroll -
 									}
 									else if(i16RelY > 0) {
-										return SCROLL+0x40; // Vertical Scroll +
+										return SCROLL+0x80; // Vertical Scroll +
 									}
 			
             case ZOOM           :   if(i16RelX > 0) {
