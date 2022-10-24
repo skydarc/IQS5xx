@@ -1,21 +1,26 @@
-/******************************************************************************
-*                                                                             *
-                             Module specification
-*                                                                             *
-                                 Copyright by
-*                                                                             *
-                               Azoteq (Pty) Ltd
-                           Republic of South Africa
-*                                                                             *
-                            Tel: +27(0)21 863 0033
-                                 www.azoteq.com
-*                                                                             *
-*******************************************************************************
-  Refer to IQS5xx datasheet for more information, available here:
-  -insert datasheet link
-*******************************************************************************
-                      IQS5xx - Registers & Memory Map
-*******************************************************************************/
+/**
+  **********************************************************************************
+  * @file     IQS5xx_addresses.h
+  * @author   skydarc
+  * @version  V0.1
+  * @date     2022-10-20
+  * @brief    This file contains the constructors and methods which allow ease of
+  *           use of an IQS5xx capactive touch controller. The IQS5xx is a capacitive
+  *           touch Integrated Circuit (IC) which provides easy trackpad
+  *           functionality. This class provides an easy means of initializing
+  *           and interacting with the IQS5xx device from an Arduino.
+  **********************************************************************************
+  * @attention  Makes use of the following standard Arduino libraries:
+  * - Arduino.h -> Included in IQS5xx.h, comes standard with Arduino
+  * - Wire.h    -> Included in IQS5xx.h, comes standard with Arduino
+  *
+  **********************************************************************************
+  
+  *******************************************************************************
+    Refer to IQS5xx datasheet for more information, available here:
+  *******************************************************************************
+                        IQS5xx - Registers & Memory Map
+  *******************************************************************************/
 
 #ifndef __IQS5XX_H
 #define __IQS5XX_H
